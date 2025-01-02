@@ -1,0 +1,51 @@
+---
+author: "will mowell"
+title: "309HW2"
+output: html_document
+date: "2022-09-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# The biggest issue I see with the plot is the radar format, the way that the data is presented seems cluttered and makes no sense to me as a reader. This type of plot just doesn't seem like a good fit for what the data is trying to present. As far as I can tell, the assessed themes aren't related in any way, and I am going to choose to assume that they are not. The colors seem fine, however a couple of them could be a little more distinct from some others. It isn't necessarily difficult to differentiate between the colors when looking at the legend, the main issue still appears to be with the graph itself, since the lines are layered on top of each other making it impossible to compare regardless of color. A grouped boxplot with some changes to color would probably solve most/all issues I can find with this plot. 
+
+
+```{r}
+library(tidyverse)
+library(ggrepel)
+schooldata <- read.csv("https://tjfisher19.github.io/data/senior_expert_ratings_tall.csv")
+
+schooldata <- schooldata %>%
+  mutate(Assessment = Assessment * 100) # turned into a percent
+```
+
+
+```{r}
+gbarplot <- ggplot(schooldata, aes(x = Rating, y = Assessment, fill = Agency)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.8) +
+  scale_color_brewer(aesthetics = "fill", palette = "Spectral") +
+  scale_y_continuous(name = "Assessment (%)",
+                     limits = c(0, 100),
+                     breaks = c(0, 25, 50, 75, 100)) +
+  theme_minimal() +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(family = "Arial", 
+                                    size = 14),
+        legend.title = element_blank(),
+        plot.caption = element_text(hjust = 0.14, family = "Arial", 
+                                    size = 12)) +
+  labs(caption = "Figure 2: Global university ranking agencies asessed by international experts against criteria\nincluding transparency and rigour")
+gbarplot
+```
+
+help(scale_color_brewer)
+
+```{r}
+ggsave("gbarplot.png",
+       plot=gbarplot,
+       width=8, height=5, bg="white",
+       dpi=600)
+```
+
