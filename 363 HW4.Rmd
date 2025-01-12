@@ -1,0 +1,114 @@
+---
+title: "363 HW 4"
+author: "Will Mowell"
+date: "March 8 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rogaine <- read.csv("rogaine.csv")
+library(tidyverse)
+library(knitr)
+library(emmeans)
+library(ggfortify)
+library(GGally)
+library(lindia)
+
+glimpse(rogaine)
+```
+
+### Part 1:
+The experimental units are the women in the study. The response variable is the daily weight gain of hair. The factors are the different games, and there are four factor levels. There are ten treatments. In order to control variability, the experimenters included a placebo trial. 
+
+### Part 2: 
+This is a two-way ANOVA with blocking, since we have one control variable and two factors of interest. 
+
+### Part 3: 
+```{r}
+rogaine <- rogaine %>%
+  mutate(treatment = factor(treatment, labels=c("Placebo", "Minoxidil")),
+         subject = as.factor(subject),
+         week = factor(week, labels=c("Pre-Tx", "Week 8", "Week 16", "Week 24", "Week 32")))
+
+glimpse(rogaine)
+```
+### Part 4
+```{r}
+ggplot(rogaine) +
+  geom_line(aes(x=week, y=weight, color=subject, linetype=treatment, group=subject))
+```
+Based on these results, most of our plots don't appear to differ too significantly. Apart from one subject,which has no interaction, all of the results appear to interact with several others. 
+
+### Part 5
+```{r}
+rogaine.anova <- aov(weight ~ week + treatment + week:treatment, data=rogaine)
+autoplot(rogaine.anova)
+```
+There don't appear to be any significant issues with our assumptions based on the above plot. 
+
+### Part 6
+```{r}
+summary(rogaine.anova)
+```
+With an F-value of 0.476 on 4 and 30 degrees of freedom and a p-value of 0.753, we conclude that the combination of the different weeks and different treatments is not significant on the hair weight gain. Neither is the effect of just the number of weeks (F-value = 0.871 on 4 and 30 degrees of freedom and a p-value of 0.493), or just the treatment (F-value = 2.404 on 1 and 30 degrees of freedom, p-value = 0.132). We fail to reject the null hypothesis under any of our predictors, and conclude that none of our factors have a significant effect on hair weight gain.  
+
+### Part 7 
+
+Since none of our factors above are significant, we have no reason to perform multiple comparisons. 
+
+## Problem 2
+
+### Part 1
+```{r}
+horse <-read.csv("horseprices.csv")
+glimpse(horse)
+```
+
+```{r}
+horse <- horse %>%
+  select(Price, Height, Sex) %>%
+  mutate(Sex = factor(Sex, labels=c("Female", "Male")))
+glimpse(horse)
+```
+
+### Part 2
+```{r}
+ggpairs(horse, columns=c(2:3,1))
+```
+There appears to be a relatively weak positive overall correlation, r = 0.423. Our response variable appears to be bimodal, suggesting some issues in our assumptions. There also appears to be some variance between the number of male and female horses. 
+
+### Part 3
+
+```{r}
+horsemodel <- lm(Price ~ Height + Sex, data=horse)
+summary(horsemodel)
+```
+
+### Part 4
+
+```{r}
+autoplot(horsemodel)
+```
+We don't appear to have any significant issues with our assumptions. 
+
+### Part 5
+
+```{r}
+gg_boxcox(horsemodel)
+```
+Since the value 1 appears within the range of our boxcox results, it does not recommend any transformation. 
+
+### Part 6
+The intercept does not make sense in context, because it does not make sense to sell a horse for negative money. 
+
+### Part 7
+Height slope = 11.29. With all other predictors held constant, the predicted mean horse price increases by 11.29 per increased centimeter of height. 
+
+### Part 8
+Residual standard error = 1240 on 39 degrees of freedom. This suggests that the price from this model are on average 1240 off of a horses actual price. 
+
+Adjusted R-squared = 0.3269. This suggests that 32.69% of the variance can be attributed to our modeled predictors. 
