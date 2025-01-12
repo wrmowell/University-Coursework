@@ -1,0 +1,196 @@
+---
+title: "STA 363 HW6"
+author: "Will Mowell"
+date: 4/22/2022
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Question 1
+
+```{r}
+library(tidyverse)
+library(knitr)
+library(emmeans)
+library(ggfortify)
+library(GGally)
+library(lindia)
+library(car)
+library(caret)
+library(kableExtra)
+library(leaps)
+
+cancer <- read.csv("cancer_reg.csv")
+glimpse(cancer)
+```
+
+### Part 1
+Based solely on the variable inventory above (i.e. no EDA), would you suspect there to be multicollinearity problems in these data?  If so, among which variables might you expect it to exist?
+
+There will probably be some multicollinearity, as some predictors clearly show the same or similar information, such as percent unemployment vs percent poverty
+
+### Part 2
+The variable Geography may be used to identify the counties with unusual observations, but it is not used to predict the response variable. After removing it from the data set, draw a scatterplot matrix of all the numeric variables in the data. Do you see any preliminary evidence of multicollinearity or unusual observations (outliers and high leverage points)?  Discuss. 
+
+```{r, fig.height=10,fig.width=10}
+cancerfilt <- cancer %>%
+  select(!Geography)
+
+ggpairs(cancerfilt)
+```
+
+There appears to be some risk of multicollinearity, namely with a correlation over 0.95 between the percent of males and females. We also appear to have a few unusual observations, with one or two in pretty much each of our predictors. 
+
+### Part 3
+Fit a full main effects model to predict mean per capita (100,000) cancer mortality from all other available numeric predictors, and perform a check of the regression assumptions using residual plots. If any assumptions appear seriously violated, perform a proper transformation to address them and refit the model. 
+
+```{r}
+modelcancer <- lm(TARGET_deathRate  ~ incidenceRate + medIncome + popEst2015 + povertyPercent + MedianAgeMale + MedianAgeFemale + AvgHouseholdSize + PctBachDeg25_Over + PctUnemployed16_Over + PctMarriedHouseholds + BirthRate, data=cancerfilt)
+
+autoplot(modelcancer)
+```
+
+Our assumptions appear fine, apart from a few unusual observations that will be addressed later in the problem.  
+
+### Part 4
+Perform a full model ANOVA F-test on your proper full model from Question 3 and interpret the result. 
+```{r}
+anovacancer <- aov(TARGET_deathRate ~ incidenceRate + medIncome + popEst2015 + povertyPercent + MedianAgeMale + MedianAgeFemale + AvgHouseholdSize + PctBachDeg25_Over + PctUnemployed16_Over + PctMarriedHouseholds + BirthRate, data=cancerfilt)
+summary(anovacancer)
+```
+Based on the above model, the medIncome (f-value of 354.697 on 1 and 1046 DF, p-value of 2e-16), povertyPercent (f-value of 31.888 on 1 and 1046 DF, p-value=2.10e-08), MedianAgeMale(f-value of 6.328 on 1 and 1046 DF, p-value=0.012036), MedianAgeFemale(f-value of 7.976 on 1 and 1046 DF, p-value=0.004829), PctBachDeg25_Over(f-value of 126.145 on 1 and 1046 DF, p-value=2e-16), PctUnemployed16_Over(f-value of 19.289 on 1 and 1046 DF, p-value=1.24e-05), PctMarriedHouseholds(f-value of 12.78 on 1 and 1046 DF, p-value=0.000366), Birthrate (f-value of 4.310 on 1 and 1046 DF, p-value=0.038134) each appear to be significant predictors for our model. 
+
+### Part 5
+Perform a formal assessment of multicollinearty from your proper full model in Question 3.  Comment on the results. 
+```{r}
+vif(modelcancer)
+```
+Having VIF values greater than 10, there are certainly multicollinearity issues with our MedianAgeMale and MedianAgeFemale predictors, as expected from informal analysis previously. With a VIF greater than 5, the medIncome predictor may be at risk as well. 
+
+### Part 6
+Identify outliers and high influential points if there are any. The number of outliers and the number of high influential points can be different, so choose the number of points you want to label properly as we did in In-class assignment 17.
+
+```{r}
+autoplot(modelcancer, which=c(1:6), label.n=4, label.size=5, label.colour="blue")
+```
+
+Points 166, 282, 627, and 1000 appear to be high influential points. 
+
+### Part 7
+There is one extremely high leverage observation. Identify the county and discuss whether the observation is legitimate or not. 
+Point 282 appears to have the highest leverage. 
+
+```{r}
+cancer %>%
+  filter(row_number()==282) %>%
+  select(Geography)
+  
+```
+```{r}
+cancer <- cancer %>%
+  mutate(levpoint = ifelse(row_number() %in% c(282),
+                                TRUE, FALSE))
+```
+
+```{r}
+cancer %>% 
+  filter(levpoint) %>%
+  dplyr::select(-levpoint) %>%
+  kable()
+```
+
+
+### Part 8
+Fit a new full model to the data after removing all the unusual observations you identified in Question 6, and provide a side-by-side listing of the estimated -coefficients from the original fitted model in Question 3 and this new model in this part.  Does it appear those observations have a substantial impact on the fitted model?  What do you think we should do with these observations, keep them or remove them?  Justify your answer. (Important note: if you chose to use a transformation in Question 3, be sure you maintain the usage of that transformation for this new model and all subsequent models you fit in this assignment).
+```{r}
+cancerfilt <- cancerfilt %>%
+  mutate(levpoints = ifelse(row_number() %in% c(282, 166, 627, 1000),
+                                TRUE, FALSE))
+```
+
+
+```{r}
+modelcancer2 <- lm(TARGET_deathRate  ~ incidenceRate + medIncome + popEst2015 + povertyPercent + MedianAgeMale + MedianAgeFemale + AvgHouseholdSize + PctBachDeg25_Over + PctUnemployed16_Over + PctMarriedHouseholds + BirthRate, data=filter(cancerfilt, !levpoints))
+```
+
+
+```{r}
+library(tidymodels)
+tidy(modelcancer) %>% 
+  select(term, `Original model estimate`=estimate) %>%
+  left_join(tidy(modelcancer2) %>%
+              select(term, `New model estimate`=estimate), by="term") %>%
+  kable()
+```
+Removing the above observations do appear to have a significant effect on our model, so they should probably be removed. 
+
+### Part 9
+Perform a backward stepwise variable selection.  Which predictors are retained using this method?
+
+```{r}
+backcancer <- stats::step(modelcancer, direction="backward")
+```
+The model ended up keeping the incidenceRate,  medIncome, popEst2015, povertyPercent, AvgHouseholdSize, PctBachDeg25_Over, PctUnemployed16_Over,  PctMarriedHouseholds, BirthRate predictors
+
+### Part 10
+Perform a forward stepwise variable selection.  Which predictors are retained using this method?
+
+```{r}
+nullcancer <- lm(TARGET_deathRate ~ 1, data=cancerfilt)
+forwcancer <- stats::step(nullcancer, scope=formula(modelcancer), direction="forward")
+```
+The forward model kept the PctBachDeg25_Over, incidenceRate, PctMarriedHouseholds, PctUnemployed16_Over, AvgHouseholdSize, and BirthRate predictors. 
+
+### Part 11
+
+Perform a best subsets regression based on BIC.  What would you say are the two best competing models using this method?
+
+```{r}
+cancer3 <- regsubsets(formula(modelcancer), data=cancerfilt, nbest=3, nvmax=8)
+subsets(cancer3, statistic="bic", legend=FALSE)
+```
+
+The best model appears to be one using between 4-6 predictors.
+
+```{r}
+summary(regsubsets(formula(modelcancer), data=cancerfilt, nbest=1, nvmax=6))
+```
+All three of the best models in the 4-6 predictor range find IncidenceRate, PctBachDeg25_Over, PctUnemployed16_Over, and PctMarriedHouseholds. Both the five and six predictor models use AvgHouseholdSize, and only the six uses BirthRate. Since the predictors are more consistently used, the four and five predictor models are likely the best competing models. 
+
+### Part 12
+
+Construct a professionally formatted table that allows you to compare all five fitted models (full model, backwards selection, forward selection, and the two best models from best subsets) via adjusted R, AIC and BIC.
+
+```{r}
+fourpmodel <- lm(TARGET_deathRate ~ incidenceRate + PctBachDeg25_Over + PctUnemployed16_Over + PctMarriedHouseholds, data=cancer)
+fivepmodel <- lm(TARGET_deathRate ~ incidenceRate + PctBachDeg25_Over + PctUnemployed16_Over + PctMarriedHouseholds + AvgHouseholdSize, data=cancer)
+```
+
+
+```{r}
+bind_rows(
+  glance(modelcancer) %>% mutate(Model="Full Model"),
+  glance(backcancer) %>% mutate(Model="Backwards Stepped Model"),
+  glance(forwcancer) %>% mutate(Model="Forwards Stepped Model"),
+  glance(fourpmodel) %>% mutate(Model="BIC 4-Predictor Model"),
+  glance(fivepmodel) %>% mutate(Model="BIC 5-Predictor Model")) %>%
+  select(Model, Adj.R.Squared = adj.r.squared,
+         AIC, BIC) %>%
+  kable()
+```
+
+
+
+
+### Part 13
+
+Using the various measures of model fit in Question 12, select the one model you deem to the “best”, and justify your selection.
+
+Based on the above measures, I would argue that the forwards stepped model is the best option. Originally I was going to argue for the backwards stepped model, however while the forwards model is very slightly worse in terms of R squared and AIC (which it still has the second best in each among the five), it has a significantly better BIC than the backwards selected model. 
+
+
+
